@@ -1,0 +1,828 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mô phỏng V21 - Khôi Phục & Hoàn Thiện</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://rsms.me/inter/inter.css">
+    <style>
+        html, body {
+            height: 100%;
+            overflow: hidden; /* Prevent body scrolling */
+        }
+        body { font-family: 'Inter', sans-serif; }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #a5b4fc; border-radius: 3px; }
+        
+        .gd-grid-wrapper { 
+            border: 1px solid #e5e7eb; 
+            border-radius: 0.5rem; 
+            overflow-y: auto; 
+            position: relative; 
+            flex-grow: 1; /* Allow grid to fill available space */
+        }
+        .gd-grid-header { 
+            flex-shrink: 0; 
+            border-bottom: 2px solid #d1d5db; 
+            background-color: #f9fafb; 
+            font-weight: 600; 
+            position: sticky; 
+            top: 0; 
+            z-index: 10; 
+        }
+        .gd-grid-header .gd-grid-cell {
+            justify-content: center;
+        }
+        .gd-grid-header .gd-col-product-name,
+        .gd-grid-header .gd-col-qty,
+        .gd-grid-header .gd-col-type {
+            justify-content: flex-start;
+        }
+        .gd-grid-header .gd-col-actions {
+            justify-content: flex-end;
+        }
+        .gd-grid-body-container { flex-grow: 1; padding: 0 0.75rem; }
+        
+        .gd-grid-row { display: flex; width: 100%; padding: 0.75rem; align-items: center; }
+        .gd-grid-body-container .gd-grid-row {
+            padding: 0;
+        }
+        .gd-grid-cell { display: flex; align-items: center; padding: 0.1rem 0.5rem; word-break: break-word; }
+        
+        /* --- COLUMN WIDTHS --- */
+        /* Header row widths (total 100%) */
+        .gd-col-order-code { width: 20%; } 
+        .gd-col-product-code { width: 14.4%; }
+        .gd-col-qty { width: 6.4%; }
+        .gd-col-type { width: 8%; } 
+        .gd-col-product-name { width: 46.4%; }
+        .gd-col-actions { width: 4.8%; }
+
+        /* Override for product rows in body (total 100% of their container) */
+        .gd-grid-body-container .gd-col-product-code { width: 18%; }
+        .gd-grid-body-container .gd-col-qty { width: 8%; }
+        .gd-grid-body-container .gd-col-type { width: 10%; }
+        .gd-grid-body-container .gd-col-product-name { width: 58%; }
+        .gd-grid-body-container .gd-col-actions { width: 6%; }
+
+        /* --- ALIGNMENT & PADDING --- */
+        .gd-col-qty { justify-content: flex-start; padding-left: 0.25rem; padding-right: 0.25rem; }
+        .gd-col-type { justify-content: flex-start; } 
+        .gd-col-actions { justify-content: flex-end; padding: 0; }
+
+
+        .gd-order-block { border-radius: 0.5rem; box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05); margin-top: 0.75rem; transition: border-color 0.3s; }
+        .gd-order-block.single-order { border: 2px solid #a5b4fc; }
+        .gd-order-block.bulk-order { border: 2px solid #f97316; }
+        .gd-order-block.cancel-order { border: 2px solid #ef4444; }
+        .gd-order-block.empty-order-warning { border-color: #facc15; border-width: 3px; }
+
+        .gd-order-code-cell { font-weight: 600; text-align: center; vertical-align: middle; border-right: 1px solid #d1d5db; position: relative; width: 20%; }
+        .single-order .gd-order-code-cell { background-color: #f3f4f6; }
+        .bulk-order .gd-order-code-cell { background-color: #ffedd5; }
+        .cancel-order .gd-order-code-cell { background-color: #fee2e2; }
+        .gd-cancel-header { padding: 0.5rem; font-size: 0.9rem; text-align: center; color: #b91c1c; font-weight: bold; }
+        .gd-entry-summary { border-top: 1px solid #d1d5db; margin-top: 0.5rem; padding-top: 0.5rem; font-size: 0.8rem; font-weight: 500; color: #4b5563; }
+
+        .gd-delete-btn { background-color: #fee2e2; color: #ef4444; border-radius: 9999px; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s; }
+        .gd-delete-order-btn { position: absolute; top: 8px; right: 8px; }
+        .gd-delete-bulk-item-btn { width: 20px; height: 20px; font-size: 14px; flex-shrink: 0; }
+        
+        .gd-qty-input { width: 100%; text-align: center; border: 1px solid #d1d5db; border-radius: 0.375rem; padding: 4px; }
+        .gd-qty-input.error { border-color: #ef4444; border-width: 2px; }
+        .gd-type-select { padding: 0.25rem 0.5rem; border-radius: 0.375rem; border: 1px solid #d1d5db; width: 100%; background-color: white; }
+        
+        #gd-error-bar { background-color: #ef4444; color: white; padding: 0.75rem; border-radius: 0.375rem; font-weight: 500; text-align: center; margin-bottom: 0.75rem; display: none; }
+        
+        #gd-main-input.error, .gd-shake-anim { animation: gd-shake 0.5s; }
+        @keyframes gd-shake { 0%, 100% { transform: translateX(0); } 10%, 30%, 50%, 70%, 90% { transform: translateX(-4px); } 20%, 40%, 60%, 80% { transform: translateX(4px); } }
+
+        #gd-loading-overlay { position: fixed; inset: 0; background-color: rgba(255, 255, 255, 0.8); z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        .gd-loader { border: 5px solid #f3f3f3; border-top: 5px solid #3498db; border-radius: 50%; width: 50px; height: 50px; animation: gd-spin 1s linear infinite; }
+        @keyframes gd-spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    
+        /* Search Modal Styles */
+        .gd-search-result-item:hover { background-color: #eff6ff; }
+    </style>
+</head>
+<body class="bg-gray-100 p-4 sm:p-6 font-sans flex flex-col h-screen">
+    <div id="gd-loading-overlay">
+        <div class="gd-loader"></div>
+        <p class="mt-4 text-gray-600 font-semibold">Đang tải dữ liệu từ Google Sheet...</p>
+    </div>
+
+    <div class="max-w-7xl w-full mx-auto bg-white p-6 rounded-lg shadow-lg flex flex-col flex-grow overflow-hidden">
+        
+        <div class="gd-grid-wrapper custom-scrollbar">
+            <div class="gd-grid-header">
+                <div class="gd-grid-row">
+                    <div class="gd-grid-cell gd-col-order-code">Mã Phiếu / Nhóm</div><div class="gd-grid-cell gd-col-product-code">Mã Sản Phẩm</div>
+                    <div class="gd-grid-cell gd-col-qty">SL</div><div class="gd-grid-cell gd-col-type">Loại</div>
+                    <div class="gd-grid-cell gd-col-product-name">Tên Sản Phẩm</div><div class="gd-grid-cell gd-col-actions">Xóa</div>
+                </div>
+            </div>
+            <div class="gd-grid-body-container" id="gd-grid-body">
+                 <div id="gd-empty-state" class="text-center text-gray-400 py-20">Chưa có dữ liệu. Hãy chọn chế độ và quét mã.</div>
+            </div>
+        </div>
+
+        <div class="flex-shrink-0 pt-4">
+             <div class="flex justify-between items-center mb-2">
+                <div class="flex items-center">
+                    <p class="text-sm text-gray-600">Chế độ: <strong id="gd-current-status-label" class="font-semibold"></strong></p>
+                    <div id="gd-waiting-indicator" class="hidden items-center ml-4">
+                        <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-orange-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <span class="text-sm text-orange-600 font-medium">Đang chờ sản phẩm...</span>
+                    </div>
+                </div>
+                 <div class="flex items-center gap-2">
+                     <div id="gd-type-toggle-container" class="flex items-center p-1 bg-gray-200 rounded-full transition-opacity">
+                         <button id="gd-type-nhap-btn" class="px-3 py-1 text-sm font-medium rounded-full text-gray-600">Nhập</button>
+                         <button id="gd-type-xuat-btn" class="px-3 py-1 text-sm font-medium rounded-full bg-white shadow text-blue-600">Xuất</button>
+                         <button id="gd-type-huy-btn" class="px-3 py-1 text-sm font-medium rounded-full text-gray-600">Hủy</button>
+                     </div>
+                     <div class="h-6 w-px bg-gray-300"></div>
+                     <div id="gd-product-type-toggle-container" class="flex items-center p-1 bg-gray-200 rounded-full transition-opacity">
+                         <button id="gd-product-type-normal-btn" class="px-3 py-1 text-sm font-medium rounded-full">Thường</button>
+                         <button id="gd-product-type-error-btn" class="px-3 py-1 text-sm font-medium rounded-full">Lỗi</button>
+                     </div>
+                     <div class="h-6 w-px bg-gray-300"></div>
+                     <div id="gd-bulk-toggle-container" class="flex items-center transition-opacity">
+                         <span id="gd-bulk-mode-label" class="mr-2 text-sm font-medium text-gray-900">Xuất Đồng Loạt</span>
+                         <label class="relative inline-flex items-center cursor-pointer">
+                           <input type="checkbox" id="gd-bulk-mode-toggle" class="sr-only peer">
+                           <div class="w-11 h-6 bg-gray-200 rounded-full peer-checked:after:translate-x-full after:content[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-orange-500"></div>
+                         </label>
+                     </div>
+                    <button id="gd-save-all-btn" class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                        <div class="flex flex-col items-center">
+                            <span id="gd-save-btn-text" class="font-bold text-base leading-tight">Lưu Tất Cả</span>
+                            <span id="gd-save-btn-summary" class="text-xs font-normal leading-tight">(0 phiếu)</span>
+                        </div>
+                    </button>
+                 </div>
+             </div>
+             <div id="gd-error-bar"></div>
+             <div class="relative">
+                <input type="text" id="gd-main-input" class="w-full p-4 text-lg border-2 border-gray-300 rounded-lg focus:border-blue-500 pr-12" placeholder="Đang tải..." disabled>
+                <button id="gd-open-search-btn" class="absolute inset-y-0 right-0 flex items-center pr-4 text-gray-400 hover:text-blue-500" disabled>
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                </button>
+             </div>
+        </div>
+    </div>
+    
+    <div id="gd-confirm-modal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 h-full w-full z-50 flex items-center justify-center">
+        <div class="relative mx-auto p-6 border w-full max-w-sm shadow-lg rounded-md bg-white">
+            <div class="text-center">
+                <h3 id="gd-confirm-title" class="text-xl font-bold text-gray-900">Xác Nhận Lưu</h3>
+                <div class="mt-4">
+                    <p class="text-base text-gray-600">
+                        <span id="gd-confirm-action-text">Lưu</span> <strong id="gd-confirm-summary" class="text-blue-600">0 phiếu</strong> vào hệ thống?
+                    </p>
+                    <p class="text-xs text-gray-400 mt-2">Quét "OK" hoặc nhấn nút để xác nhận.</p>
+                </div>
+                <div class="mt-6 flex flex-col gap-3">
+                    <button id="gd-confirm-save-btn" class="w-full px-4 py-3 bg-blue-600 text-white text-base font-medium rounded-md shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                        Lưu
+                    </button>
+                    <button id="gd-confirm-cancel-btn" class="w-full px-4 py-2 bg-gray-200 text-gray-800 text-base font-medium rounded-md shadow-sm hover:bg-gray-300 focus:outline-none">
+                        Hủy
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Search Modal -->
+    <div id="gd-search-modal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-75 h-full w-full z-50 flex items-start justify-center pt-20">
+        <div class="relative mx-auto p-5 border w-full max-w-2xl shadow-lg rounded-md bg-white flex flex-col" style="height: 70vh;">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-bold text-gray-900">Tìm Kiếm Sản Phẩm</h3>
+                <button id="gd-close-search-btn" class="text-gray-400 hover:text-gray-800">&times;</button>
+            </div>
+            <input type="text" id="gd-search-input" class="w-full p-3 text-base border-2 border-gray-300 rounded-lg focus:border-blue-500" placeholder="Nhập mã SP, tên SP, mã nội bộ...">
+            <div id="gd-search-results" class="mt-4 flex-grow overflow-y-auto custom-scrollbar border-t pt-2">
+                <p class="text-gray-400 text-center py-8">Nhập để bắt đầu tìm kiếm.</p>
+            </div>
+             <p class="text-xs text-gray-400 mt-2 text-center">Mẹo: Nhấp đúp vào một sản phẩm để thêm vào đơn hàng.</p>
+        </div>
+    </div>
+
+
+    <div id="gd-toast" class="fixed top-5 right-5 bg-gray-800 text-white px-6 py-3 rounded-lg shadow-lg text-sm font-semibold transition-transform translate-x-[120%] flex items-center" style="transition-duration: 400ms;"></div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        // --- State Management ---
+        let sessionData = []; 
+        let currentContextId = null;
+        let isBulkMode = false;
+        let transactionType = 'Xuất'; 
+        let productScanType = 'Bình thường';
+        let qtyInputOriginalValue = null;
+        
+        // Dữ liệu sẽ được tải từ Google Sheet
+        let gd_productList = [];
+        let gd_productMap = {};
+        let gd_existingTransactionCodes = [];
+
+        // --- DOM Elements ---
+        const mainInput = document.getElementById('gd-main-input');
+        const gridWrapper = document.querySelector('.gd-grid-wrapper');
+        const gridBody = document.getElementById('gd-grid-body');
+        const bulkModeToggle = document.getElementById('gd-bulk-mode-toggle');
+        const statusLabel = document.getElementById('gd-current-status-label');
+        const saveBtn = document.getElementById('gd-save-all-btn');
+        const saveBtnText = document.getElementById('gd-save-btn-text');
+        const saveBtnSummary = document.getElementById('gd-save-btn-summary');
+        const errorBar = document.getElementById('gd-error-bar');
+        const typeNhapBtn = document.getElementById('gd-type-nhap-btn');
+        const typeXuatBtn = document.getElementById('gd-type-xuat-btn');
+        const typeHuyBtn = document.getElementById('gd-type-huy-btn');
+        const productTypeNormalBtn = document.getElementById('gd-product-type-normal-btn');
+        const productTypeErrorBtn = document.getElementById('gd-product-type-error-btn');
+        const bulkModeLabel = document.getElementById('gd-bulk-mode-label');
+        const typeToggleContainer = document.getElementById('gd-type-toggle-container');
+        const bulkToggleContainer = document.getElementById('gd-bulk-toggle-container');
+        const loadingOverlay = document.getElementById('gd-loading-overlay');
+        const waitingIndicator = document.getElementById('gd-waiting-indicator');
+        const confirmModal = document.getElementById('gd-confirm-modal');
+        const confirmTitle = document.getElementById('gd-confirm-title');
+        const confirmActionText = document.getElementById('gd-confirm-action-text');
+        const confirmSummary = document.getElementById('gd-confirm-summary');
+        const confirmSaveBtn = document.getElementById('gd-confirm-save-btn');
+        const confirmCancelBtn = document.getElementById('gd-confirm-cancel-btn');
+        const openSearchBtn = document.getElementById('gd-open-search-btn');
+        const searchModal = document.getElementById('gd-search-modal');
+        const closeSearchBtn = document.getElementById('gd-close-search-btn');
+        const searchInput = document.getElementById('gd-search-input');
+        const searchResults = document.getElementById('gd-search-results');
+        let errorTimeout;
+
+        // --- Utility & Validation ---
+        const TRASH_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" /></svg>`;
+        const speak = (msg) => { try { if(!window.speechSynthesis) return; speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(msg); u.lang = 'vi-VN'; u.rate=1.5; speechSynthesis.speak(u); } catch (e) {} };
+        const generateId = () => `id_${Date.now()}_${Math.random()}`;
+        
+        let toastTimeout;
+        const showSyncToast = (message, isSuccess = true, autoHide = true) => {
+            const toast = document.getElementById('gd-toast');
+            if (!toast) return;
+
+            toast.innerHTML = message;
+            toast.style.backgroundColor = isSuccess ? '#22c55e' : '#ef4444'; // green-500 or red-500
+            toast.classList.remove('translate-x-[120%]');
+            
+            clearTimeout(toastTimeout);
+            if (autoHide) {
+                toastTimeout = setTimeout(() => {
+                    toast.classList.add('translate-x-[120%]');
+                }, 4000);
+            }
+        };
+        
+        const showError = (msg) => {
+            speak("Lỗi");
+            errorBar.textContent = msg;
+            errorBar.style.display = 'block';
+            mainInput.classList.add('error');
+            clearTimeout(errorTimeout);
+            errorTimeout = setTimeout(() => { errorBar.style.display = 'none'; mainInput.classList.remove('error'); }, 4000);
+        };
+        
+        function gd_recalculateBulkQuantities(entry) {
+             if (!entry || entry.type !== 'bulk') return;
+             const multiplier = entry.orderCodes.length;
+             for (const productKey in entry.products) {
+                 const product = entry.products[productKey];
+                 if(product.scanCount !== 'N/A' && multiplier > 0){
+                     product.qty = product.scanCount * multiplier;
+                 }
+             }
+        }
+
+        function updateUIState() {
+            const isWorking = sessionData.length > 0;
+            const hasInvalidData = sessionData.some(entry => (entry.type !== 'cancel' && Object.keys(entry.products).length === 0) || document.querySelector('.gd-qty-input.error'));
+            
+            saveBtn.disabled = !isWorking || hasInvalidData;
+            
+            let totalOrders = 0;
+            sessionData.forEach(entry => {
+                if(entry.type === 'cancel') totalOrders++;
+                else totalOrders += (entry.type === 'single') ? 1 : entry.orderCodes.length;
+            });
+            saveBtnSummary.textContent = `(${totalOrders} phiếu)`;
+
+            const isWaitingForProduct = sessionData.some(entry => !isBulkMode && entry.type === 'single' && Object.keys(entry.products).length === 0);
+            waitingIndicator.style.display = isWaitingForProduct ? 'flex' : 'none';
+        }
+
+        function syncProductTypeUI() {
+            productTypeNormalBtn.classList.remove('bg-white', 'shadow', 'text-green-600');
+            productTypeErrorBtn.classList.remove('bg-white', 'shadow', 'text-red-600');
+            productTypeNormalBtn.classList.add('text-gray-600');
+            productTypeErrorBtn.classList.add('text-gray-600');
+            
+            if (productScanType === 'Bình thường') {
+                productTypeNormalBtn.classList.add('bg-white', 'shadow', 'text-green-600');
+            } else {
+                productTypeErrorBtn.classList.add('bg-white', 'shadow', 'text-red-600');
+            }
+        }
+
+        function syncUIWithMode() {
+            const typeText = transactionType;
+            const modeText = isBulkMode ? "Đồng Loạt" : "Lẻ";
+            
+            let statusHTML = '';
+            if (typeText === 'Nhập') {
+                statusHTML = `<span class="text-green-600">${typeText} ${modeText}</span>`;
+            } else if (typeText === 'Xuất') {
+                statusHTML = `<span class="text-blue-600">${typeText} ${modeText}</span>`;
+            } else {
+                statusHTML = `<span class="text-red-600">Hủy Giao Dịch</span>`;
+            }
+            statusLabel.innerHTML = statusHTML;
+            
+            [typeNhapBtn, typeXuatBtn, typeHuyBtn].forEach(btn => {
+                btn.classList.remove('bg-white', 'shadow', 'text-blue-600', 'text-green-600', 'text-red-600');
+                btn.classList.add('text-gray-600');
+            });
+
+            if(typeText === 'Nhập') { typeNhapBtn.classList.add('bg-white', 'shadow', 'text-green-600'); }
+            else if(typeText === 'Xuất') { typeXuatBtn.classList.add('bg-white', 'shadow', 'text-blue-600'); }
+            else { typeHuyBtn.classList.add('bg-white', 'shadow', 'text-red-600'); }
+            
+            saveBtn.classList.remove('bg-blue-600', 'hover:bg-blue-700', 'bg-red-600', 'hover:bg-red-700');
+            if (typeText === 'Hủy') {
+                saveBtn.classList.add('bg-red-600', 'hover:bg-red-700');
+            } else {
+                saveBtn.classList.add('bg-blue-600', 'hover:bg-blue-700');
+            }
+
+            bulkToggleContainer.style.display = typeText === 'Hủy' ? 'none' : 'flex';
+            saveBtnText.textContent = typeText === 'Hủy' ? 'Xác Nhận Hủy' : 'Lưu Tất Cả';
+            mainInput.placeholder = typeText === 'Hủy' ? 'Quét mã phiếu cần hủy...' : 'Quét mã phiếu, sản phẩm...';
+
+            bulkModeLabel.textContent = `${typeText} Đồng Loạt`;
+            bulkModeToggle.checked = isBulkMode;
+            currentContextId = null;
+            syncProductTypeUI();
+        }
+
+        function renderGrid() {
+            gridBody.innerHTML = '';
+            if (sessionData.length === 0) {
+                gridBody.innerHTML = `<div id="gd-empty-state" class="text-center text-gray-400 py-20">Chưa có dữ liệu.</div>`;
+                updateUIState();
+                return;
+            }
+
+            sessionData.forEach(entry => {
+                const isSingle = entry.type === 'single';
+                const isCancel = entry.type === 'cancel';
+                const productData = entry.products || {};
+                const productKeys = Object.keys(productData);
+                const isEmpty = productKeys.length === 0;
+
+                let headerContent = '';
+                if(isCancel) {
+                    headerContent = `<div class="gd-cancel-header">XÁC NHẬN HỦY PHIẾU</div><div class="font-mono text-center p-2">${entry.orderCode}</div>`;
+                } else {
+                    const productTypeCount = new Set(Object.values(productData).map(p => p.code)).size;
+                    const totalProductQty = Object.values(productData).reduce((sum, p) => sum + p.qty, 0);
+                    let summaryHtml = '';
+                    if (!isEmpty) {
+                         summaryHtml = `<div class="gd-entry-summary">${productTypeCount} loại / SL: ${totalProductQty}</div>`;
+                    }
+
+                    if (isSingle) {
+                        headerContent = `<div class="p-2 font-mono">${entry.orderCode}</div>` + summaryHtml;
+                    } else {
+                        const orderCodesHtml = entry.orderCodes.map(code => `<div class="flex justify-between items-center text-sm font-normal py-1 pr-2"><span>${code}</span><button class="gd-delete-btn gd-delete-bulk-item-btn" data-id="${entry.id}" data-order-code="${code}">${TRASH_ICON_SVG}</button></div>`).join('');
+                        headerContent = `<div class="p-1 font-semibold text-center">NHÓM (${entry.orderCodes.length} phiếu)</div><div class="text-left p-2 overflow-auto max-h-24 custom-scrollbar">${orderCodesHtml}</div>${summaryHtml}`;
+                    }
+                }
+                
+                const orderBlock = document.createElement('div');
+                let blockClass = 'gd-order-block flex ';
+                if(isCancel) blockClass += 'cancel-order';
+                else if(isSingle) blockClass += 'single-order';
+                else blockClass += 'bulk-order';
+                if(isEmpty && !isCancel) blockClass += ' empty-order-warning';
+                orderBlock.className = blockClass;
+
+                const headerCell = document.createElement('div');
+                headerCell.className = 'gd-order-code-cell flex-shrink-0';
+                headerCell.innerHTML = headerContent + `<button class="gd-delete-btn gd-delete-order-btn" data-id="${entry.id}">${TRASH_ICON_SVG}</button>`;
+
+                const productsContainer = document.createElement('div');
+                productsContainer.className = 'flex-grow w-full';
+
+                if ((isEmpty && !isCancel)) {
+                    productsContainer.innerHTML = `<div class="text-gray-400 italic p-4 flex items-center justify-center h-full">Vui lòng thêm sản phẩm...</div>`;
+                } else {
+                    const productListWrapper = document.createElement('div');
+                    productListWrapper.className = 'max-h-60 overflow-y-auto custom-scrollbar';
+
+                    if (isCancel) {
+                         if (productKeys.length === 0) {
+                            productListWrapper.innerHTML = `<div class="flex items-center justify-center h-full text-center text-gray-500 p-4">Không có sản phẩm trong phiếu gốc.</div>`;
+                        } else {
+                            productKeys.forEach(pKey => {
+                                const p = entry.products[pKey];
+                                const productRow = document.createElement('div');
+                                productRow.className = 'gd-grid-row';
+                                productRow.innerHTML = `
+                                    <div class="gd-grid-cell gd-col-product-code font-mono">${p.code}</div>
+                                    <div class="gd-grid-cell gd-col-qty justify-center font-bold">${p.qty}</div>
+                                    <div class="gd-grid-cell gd-col-type justify-center">${p.type}</div>
+                                    <div class="gd-grid-cell gd-col-product-name">${p.name}</div>
+                                    <div class="gd-grid-cell gd-col-actions"></div>`;
+                                productListWrapper.appendChild(productRow);
+                            });
+                        }
+                    } else { // Nhap/Xuat mode
+                        productKeys.forEach(productKey => {
+                            const product = productData[productKey];
+                            const productRow = document.createElement('div');
+                            productRow.className = 'gd-grid-row';
+                            const orderCount = isSingle ? 1 : entry.orderCodes.length;
+                            const qtyIsInvalid = !isSingle && orderCount > 0 && product.qty % orderCount !== 0;
+                            const qtyInputClass = `gd-qty-input ${qtyIsInvalid ? 'error' : ''}`;
+                            productRow.innerHTML = `
+                                <div class="gd-grid-cell gd-col-product-code font-mono">${product.code}</div>
+                                <div class="gd-grid-cell gd-col-qty"><input type="number" min="1" value="${product.qty}" class="${qtyInputClass}" data-id="${entry.id}" data-product-key="${productKey}"></div>
+                                <div class="gd-grid-cell gd-col-type"><select class="gd-type-select" data-id="${entry.id}" data-product-key="${productKey}"><option value="Bình thường" ${product.type === 'Bình thường' ? 'selected' : ''}>Thường</option><option value="Lỗi" ${product.type === 'Lỗi' ? 'selected' : ''}>Lỗi</option></select></div>
+                                <div class="gd-grid-cell gd-col-product-name">${product.name}</div>
+                                <div class="gd-grid-cell gd-col-actions"><button class="gd-delete-btn gd-delete-product-btn" data-id="${entry.id}" data-product-key="${productKey}">${TRASH_ICON_SVG}</button></div>`;
+                            productListWrapper.appendChild(productRow);
+                        });
+                    }
+                    productsContainer.appendChild(productListWrapper);
+                }
+                
+                orderBlock.appendChild(headerCell);
+                orderBlock.appendChild(productsContainer);
+                gridBody.appendChild(orderBlock);
+            });
+            updateUIState();
+        }
+
+        function addProductByCode(productCode) {
+            const currentContext = sessionData.find(e => e.id === currentContextId);
+            if (!currentContext) { showError("Vui lòng quét Mã Phiếu hoặc bắt đầu một Nhóm."); return; }
+            if(currentContext.type === 'bulk' && currentContext.orderCodes.length < 2) {
+                    showError("Chế độ nhóm yêu cầu ít nhất 2 mã phiếu."); return;
+            }
+            
+            const productKey = `${productCode}_${productScanType}`;
+            const product = currentContext.products[productKey];
+            if (product) { 
+                product.scanCount = (product.scanCount === 'N/A' ? 1 : product.scanCount + 1);
+            } 
+            else { currentContext.products[productKey] = { code: productCode, name: gd_productMap[productCode], scanCount: 1, type: productScanType }; }
+            
+            const multiplier = currentContext.type === 'bulk' ? currentContext.orderCodes.length : 1;
+            currentContext.products[productKey].qty = currentContext.products[productKey].scanCount * Math.max(1, multiplier);
+            speak(currentContext.products[productKey].scanCount);
+
+            renderGrid();
+            if (gridWrapper) {
+                gridWrapper.scrollTop = gridWrapper.scrollHeight;
+            }
+        }
+
+
+        function handleInput(e) {
+            if (e.key !== 'Enter') return;
+            e.preventDefault();
+            let value = mainInput.value.trim().toUpperCase();
+            if (!value) return;
+
+            if (value === 'OK') {
+                if (confirmModal.classList.contains('hidden')) {
+                    if (!saveBtn.disabled) handleSave();
+                } else {
+                    executeSave();
+                }
+                mainInput.value = '';
+                return;
+            }
+            
+            if (transactionType === 'Hủy') {
+                mainInput.disabled = true;
+                google.script.run
+                    .withSuccessHandler(transactionData => {
+                        mainInput.disabled = false; mainInput.value = '';
+                        if (!transactionData) { showError("Không tìm thấy mã phiếu này trong hệ thống."); return; }
+                        if (sessionData.some(e => e.orderCode === value)) { showError("Phiếu này đã được thêm vào danh sách hủy."); return; }
+                        sessionData.push({ type: 'cancel', id: generateId(), orderCode: value, originalType: transactionData.type, products: transactionData.products || {}, transactionType: "Hủy" });
+                        renderGrid();
+                    })
+                    .withFailureHandler(error => {
+                        mainInput.disabled = false; mainInput.value = '';
+                        showError(`Lỗi khi tra cứu phiếu: ${error.message}`);
+                    })
+                    .getTransactionDetails(value);
+                return;
+            }
+
+            if (value.toLowerCase() === 'next') {
+                isBulkMode = !isBulkMode;
+                syncUIWithMode();
+                speak(`Chế độ ${isBulkMode ? "Đồng Loạt" : "Lẻ"}`);
+                mainInput.value = ''; mainInput.focus(); return;
+            }
+
+            const isProductCode = gd_productMap.hasOwnProperty(value);
+            
+            if (isProductCode) {
+                addProductByCode(value);
+            } else { // Order Code
+                if (gd_existingTransactionCodes.includes(value) || sessionData.some(e => (e.type === 'single' && e.orderCode === value) || (e.type === 'bulk' && e.orderCodes.includes(value)))) {
+                    showError('Lỗi: Mã phiếu đã tồn tại.'); mainInput.value = ''; return;
+                }
+                
+                if (!isBulkMode && currentContextId && sessionData.find(e => e.id === currentContextId)?.products && Object.keys(sessionData.find(e => e.id === currentContextId).products).length === 0) {
+                     showError('Đơn hàng hiện tại trống. Hoàn thành hoặc xóa nó trước khi quét đơn mới.'); mainInput.value = ''; return;
+                }
+                
+                if (isBulkMode) {
+                    let bulkContext = sessionData.find(e => e.id === currentContextId);
+                    if (!bulkContext || bulkContext.type !== 'bulk' || Object.keys(bulkContext.products).length > 0) {
+                        const newGroup = { type: 'bulk', id: generateId(), orderCodes: [], products: {}, transactionType: transactionType };
+                        sessionData.push(newGroup);
+                        bulkContext = newGroup;
+                        currentContextId = newGroup.id;
+                    }
+                    bulkContext.orderCodes.push(value);
+                    gd_recalculateBulkQuantities(bulkContext);
+                    speak(bulkContext.orderCodes.length);
+                } else {
+                    const newOrder = { type: 'single', id: generateId(), orderCode: value, products: {}, transactionType: transactionType };
+                    sessionData.push(newOrder);
+                    currentContextId = newOrder.id;
+                    speak("Mới");
+                }
+                renderGrid();
+            }
+
+            mainInput.value = '';
+        }
+
+        function handleSave() {
+            if (saveBtn.disabled) return;
+            
+            confirmSummary.textContent = saveBtnSummary.textContent.replace('(', '').replace(')', '');
+            
+            if (transactionType === 'Hủy') {
+                confirmTitle.textContent = 'Xác Nhận Hủy';
+                confirmActionText.textContent = 'Hủy';
+                confirmSaveBtn.textContent = 'Xác Nhận Hủy';
+                confirmSaveBtn.classList.remove('bg-blue-600', 'hover:bg-blue-700');
+                confirmSaveBtn.classList.add('bg-red-600', 'hover:bg-red-700');
+            } else {
+                confirmTitle.textContent = 'Xác Nhận Lưu';
+                confirmActionText.textContent = 'Lưu';
+                confirmSaveBtn.textContent = 'Lưu';
+                confirmSaveBtn.classList.remove('bg-red-600', 'hover:bg-red-700');
+                confirmSaveBtn.classList.add('bg-blue-600', 'hover:bg-blue-700');
+            }
+
+            confirmModal.classList.remove('hidden');
+            mainInput.focus();
+        }
+
+        function executeSave() {
+            confirmModal.classList.add('hidden');
+            
+            const dataToSave = JSON.parse(JSON.stringify(sessionData));
+            const summaryText = saveBtnSummary.textContent;
+
+            sessionData = [];
+            currentContextId = null;
+            renderGrid();
+            mainInput.focus();
+            
+            const spinner = `<svg class="animate-spin inline-block -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>`;
+            showSyncToast(`${spinner} Đang xử lý ${summaryText}...`, true, false);
+
+            google.script.run
+                .withSuccessHandler(response => {
+                    if (response.success) {
+                        showSyncToast(response.message, true);
+                        if (response.updatedTransactionCodes) {
+                            gd_existingTransactionCodes = response.updatedTransactionCodes;
+                        }
+                    } else {
+                        showSyncToast(`Lỗi: ${response.message}`, false);
+                    }
+                })
+                .withFailureHandler(error => {
+                    showSyncToast(`Thất bại: ${error.message}`, false);
+                })
+                .saveTransactions(dataToSave);
+        }
+
+        function setupEventListeners() {
+            bulkModeToggle.addEventListener('change', e => { 
+                isBulkMode = e.target.checked; 
+                syncUIWithMode(); 
+                mainInput.focus(); 
+            });
+            typeNhapBtn.addEventListener('click', () => { if(sessionData.length > 0) return; transactionType = 'Nhập'; syncUIWithMode(); });
+            typeXuatBtn.addEventListener('click', () => { if(sessionData.length > 0) return; transactionType = 'Xuất'; syncUIWithMode(); });
+            typeHuyBtn.addEventListener('click', () => { if(sessionData.length > 0) return; transactionType = 'Hủy'; isBulkMode = false; syncUIWithMode(); }); 
+            productTypeNormalBtn.addEventListener('click', () => { productScanType = 'Bình thường'; syncProductTypeUI(); mainInput.focus(); });
+            productTypeErrorBtn.addEventListener('click', () => { productScanType = 'Lỗi'; syncProductTypeUI(); mainInput.focus(); });
+
+            mainInput.addEventListener('keydown', handleInput);
+            saveBtn.addEventListener('click', handleSave);
+
+            confirmSaveBtn.addEventListener('click', executeSave);
+            confirmCancelBtn.addEventListener('click', () => {
+                confirmModal.classList.add('hidden');
+                mainInput.focus();
+            });
+            
+            gridBody.addEventListener('change', e => {
+                const target = e.target.closest('.gd-type-select');
+                if (!target) return;
+                const entryId = target.dataset.id;
+                const productKey = target.dataset.productKey;
+                const entry = sessionData.find(e => e.id === entryId);
+                if (entry && entry.products[productKey]) {
+                    entry.products[productKey].type = target.value;
+                }
+            });
+            
+            gridBody.addEventListener('focusin', e => {
+                const target = e.target.closest('.gd-qty-input');
+                if (target) {
+                    qtyInputOriginalValue = target.value;
+                    target.value = '';
+                }
+            });
+
+            gridBody.addEventListener('focusout', e => {
+                const target = e.target.closest('.gd-qty-input');
+                if (target && target.value.trim() === '') {
+                    target.value = qtyInputOriginalValue;
+                    target.classList.remove('error');
+                    updateUIState();
+                }
+                 qtyInputOriginalValue = null;
+            });
+            
+            gridBody.addEventListener('input', e => {
+                const target = e.target.closest('.gd-qty-input');
+                if (!target) return;
+                
+                const entryId = target.dataset.id;
+                const productKey = target.dataset.productKey;
+                const entry = sessionData.find(e => e.id === entryId);
+                
+                if (target.value.trim() === '' || parseInt(target.value, 10) < 1) {
+                     target.classList.add('error');
+                     updateUIState();
+                     return;
+                }
+
+                let newQty = parseInt(target.value, 10);
+                if(entry && entry.products[productKey]) {
+                    entry.products[productKey].qty = newQty;
+                    entry.products[productKey].scanCount = 'N/A';
+                }
+
+                if (entry && entry.type === 'bulk') {
+                    const orderCount = entry.orderCodes.length;
+                    if (orderCount > 0 && newQty % orderCount !== 0) {
+                        target.classList.add('error');
+                    } else { 
+                        target.classList.remove('error'); 
+                    }
+                } else {
+                    target.classList.remove('error');
+                }
+                updateUIState();
+            });
+            
+            gridBody.addEventListener('click', e => {
+                const deleteOrderBtn = e.target.closest('.gd-delete-order-btn');
+                const deleteProductBtn = e.target.closest('.gd-delete-product-btn');
+                const deleteBulkItemBtn = e.target.closest('.gd-delete-bulk-item-btn');
+                
+                if (deleteOrderBtn) {
+                    const entryId = deleteOrderBtn.dataset.id;
+                    sessionData = sessionData.filter(entry => entry.id !== entryId);
+                    if (currentContextId === entryId) currentContextId = null;
+                    renderGrid();
+                } else if (deleteProductBtn) {
+                    const entryId = deleteProductBtn.dataset.id;
+                    const productKey = deleteProductBtn.dataset.productKey;
+                    const entry = sessionData.find(e => e.id === entryId);
+                    if (entry && entry.products) delete entry.products[productKey];
+                    renderGrid();
+                } else if (deleteBulkItemBtn) {
+                    const entryId = deleteBulkItemBtn.dataset.id;
+                    const orderCodeToDelete = deleteBulkItemBtn.dataset.orderCode;
+                    const entry = sessionData.find(e => e.id === entryId);
+                    if (entry && entry.type === 'bulk') {
+                        entry.orderCodes = entry.orderCodes.filter(code => code !== orderCodeToDelete);
+                        gd_recalculateBulkQuantities(entry);
+                        if (entry.orderCodes.length === 0) {
+                            sessionData = sessionData.filter(e => e.id !== entryId);
+                            if (currentContextId === entryId) currentContextId = null;
+                        }
+                        renderGrid();
+                    }
+                }
+            });
+
+            // Search Modal Events
+            openSearchBtn.addEventListener('click', () => {
+                searchModal.classList.remove('hidden');
+                searchInput.focus();
+            });
+            closeSearchBtn.addEventListener('click', () => searchModal.classList.add('hidden'));
+            searchModal.addEventListener('click', (e) => {
+                if (e.target === searchModal) {
+                    searchModal.classList.add('hidden');
+                }
+            });
+            searchInput.addEventListener('input', () => {
+                const term = searchInput.value.toLowerCase().trim();
+                if (term.length < 2) {
+                    searchResults.innerHTML = '<p class="text-gray-400 text-center py-8">Nhập ít nhất 2 ký tự để tìm.</p>';
+                    return;
+                }
+                const filtered = gd_productList.filter(p => 
+                    p.id.toLowerCase().includes(term) || 
+                    p.name.toLowerCase().includes(term) || 
+                    (p.internalCode && p.internalCode.toLowerCase().includes(term))
+                );
+
+                if (filtered.length === 0) {
+                    searchResults.innerHTML = '<p class="text-gray-400 text-center py-8">Không tìm thấy sản phẩm nào.</p>';
+                    return;
+                }
+
+                searchResults.innerHTML = filtered.map(p => `
+                    <div class="gd-search-result-item p-3 border-b cursor-pointer" data-product-code="${p.id}">
+                        <p class="font-semibold text-gray-800">${p.name}</p>
+                        <p class="text-sm text-gray-500">Mã SP: ${p.id} | Mã nội bộ: ${p.internalCode || 'N/A'}</p>
+                    </div>
+                `).join('');
+            });
+
+            searchResults.addEventListener('dblclick', (e) => {
+                const item = e.target.closest('.gd-search-result-item');
+                if (item) {
+                    const productCode = item.dataset.productCode;
+                    addProductByCode(productCode);
+                    searchModal.classList.add('hidden');
+                    searchInput.value = '';
+                    searchResults.innerHTML = '<p class="text-gray-400 text-center py-8">Nhập để bắt đầu tìm kiếm.</p>';
+                    mainInput.focus();
+                }
+            });
+        }
+
+        function initializeApp() {
+            setupEventListeners();
+            syncUIWithMode();
+            renderGrid();
+
+            google.script.run
+                .withSuccessHandler(data => {
+                    gd_productList = data.productList || [];
+                    gd_productMap = gd_productList.reduce((acc, p) => { acc[p.id] = p.name; return acc; }, {});
+                    gd_existingTransactionCodes = data.existingTransactionCodes || [];
+                    
+                    mainInput.disabled = false;
+                    openSearchBtn.disabled = false;
+                    mainInput.placeholder = 'Quét mã phiếu, sản phẩm...';
+                    loadingOverlay.style.display = 'none';
+                    mainInput.focus();
+                })
+                .withFailureHandler(error => {
+                    loadingOverlay.innerHTML = `<p class="text-red-500 font-semibold p-4">Không thể tải dữ liệu ban đầu: ${error.message}<br>Vui lòng làm mới trang.</p>`;
+                })
+                .getInitialData();
+        }
+
+        // --- Initialize App ---
+        initializeApp();
+    });
+    </script>
+</body>
+</html>
+
